@@ -127,7 +127,7 @@ echo "👉 Access: http://<your-ec2-public-ip>:9000"
 docker images
 docker ps -a
 
-squ_017728ab6c5d1d2aba9da90e468c32f0df07b54e
+
 -------------------
 sudo vi /etc/prometheus/prometheus.yml
 

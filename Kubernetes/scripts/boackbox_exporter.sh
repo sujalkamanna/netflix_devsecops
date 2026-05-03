@@ -1,54 +1,68 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 echo "🔄 Updating system..."
 sudo apt update -y
 
 # =========================================================
-# 👤 Create Blackbox Exporter User
+# 👤 Create user
 # =========================================================
 echo "👤 Creating blackbox_exporter user..."
 sudo useradd --system --no-create-home --shell /bin/false blackbox_exporter || true
 
 # =========================================================
+# 📦 Install check
+# =========================================================
+if command -v blackbox_exporter >/dev/null 2>&1; then
+  echo "⚠️ Blackbox Exporter already installed. Exiting."
+  exit 0
+fi
+
+# =========================================================
 # 📦 Variables
 # =========================================================
-BLACKBOX_VERSION="0.27.0"
+VERSION="0.27.0"
 INSTALL_DIR="/tmp"
-EXTRACTED_DIR="blackbox_exporter-${BLACKBOX_VERSION}.linux-amd64"
+ARCHIVE="blackbox.tar.gz"
+DIR="blackbox_exporter-${VERSION}.linux-amd64"
 
 cd $INSTALL_DIR
 
 # =========================================================
-# 📦 Download Blackbox Exporter
+# ⬇️ Download
 # =========================================================
-echo "⬇️ Downloading Blackbox Exporter v${BLACKBOX_VERSION}..."
-wget https://github.com/prometheus/blackbox_exporter/releases/download/v${BLACKBOX_VERSION}/${EXTRACTED_DIR}.tar.gz
+echo "⬇️ Downloading Blackbox Exporter..."
+wget -q --show-progress -O $ARCHIVE \
+https://github.com/prometheus/blackbox_exporter/releases/download/v${VERSION}/${DIR}.tar.gz
 
 # =========================================================
-# 📂 Extract Files
+# 📂 Extract
 # =========================================================
 echo "📂 Extracting..."
-tar -xvf ${EXTRACTED_DIR}.tar.gz
-cd ${EXTRACTED_DIR}
+tar -xvf $ARCHIVE
+cd $DIR
 
 # =========================================================
-# 📁 Create Config Directory
+# 📁 Config dir
 # =========================================================
-echo "📁 Creating config directory..."
 sudo mkdir -p /etc/blackbox_exporter
 
 # =========================================================
-# 📦 Move Files
+# 📦 Install
 # =========================================================
-echo "📦 Installing binaries and config..."
+echo "📦 Installing..."
+
 sudo mv blackbox_exporter /usr/local/bin/
-sudo mv blackbox.yml /etc/blackbox_exporter/
+
+if [ ! -f /etc/blackbox_exporter/blackbox.yml ]; then
+  sudo mv blackbox.yml /etc/blackbox_exporter/
+else
+  echo "⚠️ Existing config found, keeping it"
+fi
 
 # =========================================================
-# 🔐 Set Permissions
+# 🔐 Permissions
 # =========================================================
-echo "🔐 Setting permissions..."
 sudo chown -R blackbox_exporter:blackbox_exporter /etc/blackbox_exporter
 sudo chown blackbox_exporter:blackbox_exporter /usr/local/bin/blackbox_exporter
 
@@ -56,12 +70,13 @@ sudo chown blackbox_exporter:blackbox_exporter /usr/local/bin/blackbox_exporter
 # 🧹 Cleanup
 # =========================================================
 cd /tmp
-rm -rf ${EXTRACTED_DIR}*
+rm -rf ${DIR}*
+rm -f $ARCHIVE
 
 # =========================================================
-# ⚙️ Create systemd Service
+# ⚙️ Service
 # =========================================================
-echo "⚙️ Creating Blackbox Exporter service..."
+echo "⚙️ Creating service..."
 
 sudo tee /etc/systemd/system/blackbox_exporter.service > /dev/null <<EOF
 [Unit]
@@ -70,11 +85,10 @@ After=network.target
 
 [Service]
 User=blackbox_exporter
-ExecStart=/usr/local/bin/blackbox_exporter \
-  --config.file=/etc/blackbox_exporter/blackbox.yml \
-  --web.listen-address=:9115 \
+ExecStart=/usr/local/bin/blackbox_exporter \\
+  --config.file=/etc/blackbox_exporter/blackbox.yml \\
+  --web.listen-address=:9115 \\
   --log.level=info
-
 Restart=always
 
 [Install]
@@ -82,29 +96,37 @@ WantedBy=multi-user.target
 EOF
 
 # =========================================================
-# ▶️ Start Service
+# 🚀 Start
 # =========================================================
-echo "🚀 Starting Blackbox Exporter..."
+echo "🚀 Starting service..."
 
 sudo systemctl daemon-reload
 sudo systemctl enable blackbox_exporter
 sudo systemctl restart blackbox_exporter
 
 # =========================================================
-# 🔍 Verify Service
+# 🔍 Verify
 # =========================================================
-echo "📊 Checking status..."
-sudo systemctl status blackbox_exporter --no-pager
+echo "🔍 Checking service..."
 
-echo "📜 Logs (live):"
-echo "journalctl -u blackbox_exporter -f --no-pager"
+if systemctl is-active --quiet blackbox_exporter; then
+  echo "✅ Blackbox Exporter is running"
+else
+  echo "❌ Service failed"
+  sudo journalctl -u blackbox_exporter --no-pager -n 20
+  exit 1
+fi
 
 # =========================================================
-# 🌐 Test Endpoints
+# 🌐 Test
 # =========================================================
 echo "🌐 Test endpoints:"
-echo "👉 UI: http://<MONITORING-IP>:9115"
-echo "👉 Probe Test:"
+echo "👉 UI: http://<SERVER-IP>:9115"
+echo "👉 Probe:"
 echo "curl 'http://localhost:9115/probe?target=http://example.com&module=http_2xx'"
 
-echo "✅ Blackbox Exporter Installed Successfully!"
+echo "⚠️ Ensure port 9115 is open"
+
+echo "-----------------------------------"
+echo "✅ Blackbox Exporter Setup Complete"
+echo "-----------------------------------"

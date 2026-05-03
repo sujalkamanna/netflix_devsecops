@@ -1,0 +1,193 @@
+#access cluster
+
+# List clusters
+aws eks list-clusters --region ap-south-1
+
+# Configure kubectl for cluster
+aws eks update-kubeconfig --region ap-south-1 --name EKS_CLUSTER
+
+# Verify connection
+kubectl get nodes
+
+--------------------------
+# Ensure Docker works
+docker --version
+
+#!/bin/bash
+set -e
+
+echo "🔄 Updating system..."
+sudo apt update -y
+
+# =========================================================
+# 🔧 Fix Kernel Settings (CLEAN + CORRECT)
+# =========================================================
+echo "🔧 Configuring kernel settings..."
+
+# Remove duplicate entries safely
+sudo sed -i '/vm.max_map_count/d' /etc/sysctl.conf
+sudo sed -i '/fs.file-max/d' /etc/sysctl.conf
+
+# Add correct values
+echo "vm.max_map_count=524288" | sudo tee -a /etc/sysctl.conf
+echo "fs.file-max=131072" | sudo tee -a /etc/sysctl.conf
+
+# Apply settings
+sudo sysctl -p
+
+# Verify
+echo "🔍 Verifying kernel settings..."
+sysctl vm.max_map_count
+sysctl fs.file-max
+
+# =========================================================
+# 🐳 Ensure Docker is running
+# =========================================================
+echo "🐳 Checking Docker..."
+sudo systemctl start docker
+sudo systemctl enable docker
+
+docker --version
+
+vi sonar.sh 
+
+#!/bin/bash
+set -e
+
+echo "🔄 Updating system..."
+sudo apt update -y
+
+# =========================================================
+# 🔧 Fix Kernel Settings (CLEAN + CORRECT)
+# =========================================================
+echo "🔧 Configuring kernel settings..."
+
+# Remove duplicate entries safely
+sudo sed -i '/vm.max_map_count/d' /etc/sysctl.conf
+sudo sed -i '/fs.file-max/d' /etc/sysctl.conf
+
+# Add correct values
+echo "vm.max_map_count=524288" | sudo tee -a /etc/sysctl.conf
+echo "fs.file-max=131072" | sudo tee -a /etc/sysctl.conf
+
+# Apply settings
+sudo sysctl -p
+
+# Verify
+echo "🔍 Verifying kernel settings..."
+sysctl vm.max_map_count
+sysctl fs.file-max
+
+# =========================================================
+# 🐳 Ensure Docker is running
+# =========================================================
+echo "🐳 Checking Docker..."
+sudo systemctl start docker
+sudo systemctl enable docker
+
+docker --version
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+
+# =========================================================
+# 📦 Pull Latest SonarQube LTS
+# =========================================================
+echo "⬇️ Pulling SonarQube image..."
+docker pull sonarqube:lts-community
+
+# =========================================================
+# ▶️ Run SonarQube (NO VOLUMES)
+# =========================================================
+echo "🚀 Starting SonarQube..."
+
+docker run -d \
+  --name sonar \
+  -p 9000:9000 \
+  --restart unless-stopped \
+  sonarqube:lts-community
+
+# =========================================================
+# ⏳ Wait and Check Status
+# =========================================================
+sleep 10
+
+echo "📊 Checking container status..."
+docker ps -a
+
+echo "📜 Showing logs (if any issue)..."
+docker logs sonar --tail 20
+
+# =========================================================
+# 🎉 Done
+# =========================================================
+echo "✅ SonarQube setup complete!"
+echo "👉 Access: http://<your-ec2-public-ip>:9000"
+
+docker images
+docker ps -a
+
+squ_017728ab6c5d1d2aba9da90e468c32f0df07b54e
+-------------------
+sudo vi /etc/prometheus/prometheus.yml
+
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+
+  # =========================================================
+  # 🖥 Prometheus Itself
+  # =========================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # =========================================================
+  # 🧠 Jenkins Monitoring
+  # =========================================================
+  - job_name: 'jenkins'
+    metrics_path: '/prometheus/'
+    static_configs:
+      - targets: ['<YOUR-EC2-IP>:8080']
+
+  # =========================================================
+  # 💻 Node Exporter
+  # =========================================================
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets: ['localhost:9100']
+
+  # =========================================================
+  # 🌐 Blackbox Exporter (HTTP Monitoring)
+  # =========================================================
+  - job_name: 'blackbox'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+
+    static_configs:
+      - targets:
+          - http://<YOUR-EC2-IP>:8080
+          - http://example.com
+
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+
+      - source_labels: [__param_target]
+        target_label: instance
+
+      - target_label: __address__
+        replacement: localhost:9115
+
+promtool check config /etc/prometheus/prometheus.yml
+sudo systemctl restart prometheus
+
+
+-------------------------------------------
+aws eks update-kubeconfig --name EKS_CLUSTER --region ap-south-1
+
+cat .kube/config
+# copy all to secret.txt file 
+kubectl get nodes

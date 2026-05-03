@@ -1,0 +1,160 @@
+SMTP Server: smtp.gmail.com
+SMTP Port: 465
+Use SMTP Authentication: ✅
+Username: your-email@gmail.com
+Password: (App Password)
+Use SSL: ✅
+
+🧠 🔐 PART 1: GOOGLE ACCOUNT SETUP (MANDATORY)
+
+✅ Step 1: Enable 2-Step Verification
+
+Go to:
+
+Google Account → Security
+
+Enable:
+
+2-Step Verification (ON)
+
+👉 This is required before generating App Password
+
+
+ ✅ Step 2: Generate App Password
+
+Go to:
+
+https://myaccount.google.com/apppasswords
+
+Then:
+
+1. Select App → Mail
+2. Select Device → Other (Jenkins)
+3. Click Generate
+
+👉 You’ll get:
+
+16-character password
+
+✔ Copy it — you’ll use it in Jenkins
+✔ You cannot see it again
+
+
+ ⚔️ IMPORTANT RULE
+
+DO NOT USE NORMAL GMAIL PASSWORD ❌
+USE APP PASSWORD ONLY ✅
+
+ 🧩 PART 2: JENKINS SETUP
+
+ ✅ Step 3: Install Plugin
+
+Go to:
+
+Manage Jenkins → Manage Plugins → Available
+
+Install:
+
+ Email Extension Plugin
+
+👉 Required for `emailext` in pipeline
+
+
+ ✅ Step 4: Configure SMTP
+
+Go to:
+
+Manage Jenkins → Configure System
+
+
+ 🔥 Fill EXACT values:
+
+SMTP Server: smtp.gmail.com
+SMTP Port: 465
+Use SMTP Authentication: ✅
+Username: your-email@gmail.com
+Password: (App Password)
+Use SSL: ✅
+
+👉 These are standard Gmail SMTP settings
+
+
+ ✅ Step 5: Set System Email
+
+Still in same page:
+
+Jenkins Location →
+System Admin e-mail address: your-email@gmail.com
+
+👉 Required for sending emails
+
+ ✅ Step 6: Test SMTP
+
+Click:
+
+Test configuration by sending test email
+
+👉 If correct:
+
+Email sent successfully ✅
+
+
+ 🔐 PART 3: (BEST PRACTICE – OPTIONAL BUT IMPORTANT)
+
+ Store credentials in Jenkins
+
+Go to:
+
+Manage Jenkins → Manage Credentials
+
+Add:
+
+ Kind: Username with password
+ Username: your Gmail
+ Password: App Password
+
+👉 More secure than plain config
+
+ 🚀 FINAL FLOW
+
+Google Account
+   ↓
+App Password
+   ↓
+Jenkins SMTP Config
+   ↓
+Pipeline emailext
+   ↓
+Email Sent ✅
+
+
+ ⚠️ COMMON ERRORS (AND FIX)
+
+ ❌ Authentication failed
+
+👉 Fix:
+
+ Use App Password (NOT Gmail password)
+
+---
+
+ ❌ Could not connect to SMTP
+
+👉 Fix:
+
+ Enable SSL
+ Use port 465
+
+---
+
+ ❌ Email not received
+
+👉 Check:
+
+Spam folder
+
+After these steps:
+
+ ✅ Jenkins email will work
+ ✅ Your pipeline notifications will send
+ ✅ Attachments (Trivy reports) will work

@@ -33,7 +33,11 @@ pipeline {
 
         stage("Install Dependencies") {
             steps {
-                sh "npm ci --cache .npm --prefer-offline"
+                sh """
+                node -v
+                npm -v
+                npm install
+                """
             }
         }
 
@@ -56,15 +60,13 @@ pipeline {
 
         stage("Quality Gate") {
             steps {
-                script {
-                    timeout(time: 2, unit: 'MINUTES') {
-                        waitForQualityGate abortPipeline: true
-                    }
+                timeout(time: 2, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
 
-        stage("Trivy Filesystem Scan") {
+        stage("Trivy FS Scan") {
             steps {
                 sh "trivy fs --exit-code 1 --severity HIGH,CRITICAL . | tee trivyfs.txt"
             }
@@ -76,7 +78,7 @@ pipeline {
                     withCredentials([string(credentialsId: 'tmdb-api', variable: 'API_KEY')]) {
                         sh """
                         docker build \
-                        --build-arg TMDB_V3_API_KEY=$API_KEY \
+                        --build-arg VITE_APP_TMDB_V3_API_KEY=$API_KEY \
                         -t ${APP_NAME}:${BUILD_NUMBER} .
                         """
                     }
@@ -84,13 +86,13 @@ pipeline {
             }
         }
 
-        stage("Tag & Push Image") {
+        stage("Docker Push") {
             steps {
                 script {
-                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
+                    withDockerRegistry(credentialsId: 'docker', url: 'https://index.docker.io/v1/') {
                         sh """
-                        docker tag ${APP_NAME}:${BUILD_NUMBER} xyz/${APP_NAME}:${BUILD_NUMBER}
-                        docker push xyz/${APP_NAME}:${BUILD_NUMBER}
+                        docker tag ${APP_NAME}:${BUILD_NUMBER} sujalkamanna/${APP_NAME}:${BUILD_NUMBER}
+                        docker push sujalkamanna/${APP_NAME}:${BUILD_NUMBER}
                         """
                     }
                 }
@@ -99,23 +101,21 @@ pipeline {
 
         stage("Trivy Image Scan") {
             steps {
-                sh "trivy image --exit-code 1 --severity HIGH,CRITICAL xyz/${APP_NAME}:${BUILD_NUMBER} | tee trivyimage.txt"
+                sh "trivy image --exit-code 1 --severity HIGH,CRITICAL sujalkamanna/${APP_NAME}:${BUILD_NUMBER} | tee trivyimage.txt"
             }
         }
 
         stage("Deploy to Kubernetes") {
             steps {
-                script {
+                withCredentials([file(credentialsId: 'k8s-config', variable: 'KUBECONFIG')]) {
                     dir("Kubernetes") {
-                        withKubeConfig([credentialsId: 'k8s']) {
-
-                            sh "kubectl get nodes"
-
-                            sh "kubectl apply -f deployment.yml"
-                            sh "kubectl apply -f service.yml"
-
-                            sh "kubectl rollout status deployment/${APP_NAME}-deployment"
-                        }
+                        sh """
+                        export KUBECONFIG=$KUBECONFIG
+                        kubectl get nodes
+                        kubectl apply -f deployment.yml
+                        kubectl apply -f service.yml
+                        kubectl rollout status deployment/${APP_NAME}-deployment
+                        """
                     }
                 }
             }
@@ -131,36 +131,30 @@ pipeline {
     post {
 
         success {
-            echo "✅ Pipeline Successful"
-
             emailext(
-                subject: "✅ SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                to: 'xyz@gmail.com',
+                subject: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """
-                <h2>✅ Build Successful</h2>
-                <p><b>Project:</b> ${env.JOB_NAME}</p>
-                <p><b>Build:</b> ${env.BUILD_NUMBER}</p>
-                <p><b>Status:</b> SUCCESS</p>
-                <p><b>URL:</b> <a href="${env.BUILD_URL}">Open Build</a></p>
-                """,
-                to: 'sujalkamanna2003@gmail.com'
+                Build Success
+                Project: ${env.JOB_NAME}
+                Build: ${env.BUILD_NUMBER}
+                Status: SUCCESS
+                URL: ${env.BUILD_URL}
+                """
             )
         }
 
         failure {
-            echo "❌ Pipeline Failed"
-
-            sh "kubectl rollout undo deployment/${APP_NAME}-deployment || true"
-
             emailext(
-                subject: "❌ FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                to: 'xyz@gmail.com',
+                subject: "FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """
-                <h2>❌ Build Failed</h2>
-                <p><b>Project:</b> ${env.JOB_NAME}</p>
-                <p><b>Build:</b> ${env.BUILD_NUMBER}</p>
-                <p><b>Status:</b> FAILED</p>
-                <p><b>URL:</b> <a href="${env.BUILD_URL}">Open Build</a></p>
-                """,
-                to: 'sujalkamanna2003@gmail.com'
+                Build Failed
+                Project: ${env.JOB_NAME}
+                Build: ${env.BUILD_NUMBER}
+                Status: FAILED
+                URL: ${env.BUILD_URL}
+                """
             )
         }
 
